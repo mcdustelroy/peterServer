@@ -126,47 +126,48 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
         }
     })
     const order = req.body
-    const maxOrderQty = 5
+    // const maxOrderQty = 5
     const accountvalue = balanceInfo.data.totalCashValue
     const initialMargin = balanceInfo.data.initialMargin
-    const maxLossPerOrder = accountvalue * .01
-    const minProfit = 4     // 4 ticks is the minimum profit to take an order
+    // const maxLossPerOrder = accountvalue * .01
+    // const minProfit = 4     // 4 ticks is the minimum profit to take an order
     const potentialLoss = Math.abs(order.stopLossPrice - order.price)*4*12.5  
     const potentialProfit = Math.abs(order.takeProfitPrice - order.price)*4*12.5
 
     // set expiration after x amount of candles
     const howManySecondsToExp = parseInt(req.body.expireIn)
-    const expTime = new Date;
-    expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp)
+    // const expTime = new Date;
+    // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp)
     // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp*2)
 
     console.log('-------------------------------------------------')
     console.log('the order is: ', order)
     console.log('order qty is : ', order.orderQty)
-    console.log('max order qty is : ', maxOrderQty)
+    // console.log('max order qty is : ', maxOrderQty)
     console.log('initial Margin is: ', initialMargin)
     console.log('expireIn seconds: ', req.body.expireIn)
-    console.log('the expiration time is: ', expTime)
+    // console.log('the expiration time is: ', expTime)
     console.log('potential loss $', potentialLoss) 
     console.log('potential loss % of Account: ', potentialLoss/accountvalue*100) 
     console.log('potential profit $', potentialProfit) 
-    console.log('the max allowable loss per order is: $', maxLossPerOrder)
+    // console.log('the max allowable loss per order is: $', maxLossPerOrder)
     console.log('-------------------------------------------------')
     
-    if (potentialLoss > maxLossPerOrder) {
-        res.send('too large of loss')
-    } else if (Math.abs(order.takeProfitPrice - order.price)*4 < minProfit) {
-        res.send('too small an order')
-    } else {
+    // if (potentialLoss > maxLossPerOrder) {
+    //     res.send('too large of loss')
+    // } else if (Math.abs(order.takeProfitPrice - order.price)*4 < minProfit) {
+    //     res.send('too small an order')
+    // } else {
     
     const orderOBJ = {
         accountSpec: accountType === 'demo' ? process.env.DEMOSPEC : process.env.LIVESPEC,
         accountId: accountType === 'demo' ? parseInt(process.env.DEMOID) : process.env.LIVEID,
         action: order.action,
         symbol: order.symbol,
-        orderQty: order.orderQty > maxOrderQty ? maxOrderQty : order.orderQty,
+        // orderQty: order.orderQty > maxOrderQty ? maxOrderQty : order.orderQty,
+        orderQty: order.orderQty,
         orderType: order.orderType,
-        expireTime: expTime,
+        // expireTime: expTime,
         price: order.orderType === "Stop" || order.orderType === "Market" ? null : order.price,
         stopPrice: order.orderType === "Stop" ? order.price : null,
         isAutomated: true, 
@@ -195,7 +196,7 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
     })
 
     res.send(response.data)
-}}});
+}});
 
 server.listen(80, () => {
   console.log('Server is listening on localhost:80');
