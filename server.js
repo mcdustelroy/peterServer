@@ -132,11 +132,11 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
         const initialMargin = balanceInfo.data.initialMargin
         // const maxLossPerOrder = accountvalue * .01
         // const minProfit = 4     // 4 ticks is the minimum profit to take an order
-        const potentialLoss = Math.abs(order.stopLossPrice - order.price)*4*12.5  
-        const potentialProfit = Math.abs(order.takeProfitPrice - order.price)*4*12.5
+        // const potentialLoss = Math.abs(order.stopLossPrice - order.price)*4*12.5  
+        // const potentialProfit = Math.abs(order.takeProfitPrice - order.price)*4*12.5
 
         // set expiration after x amount of candles
-        const howManySecondsToExp = parseInt(req.body.expireIn)
+        // const howManySecondsToExp = parseInt(req.body.expireIn)
         // const expTime = new Date;
         // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp)
         // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp*2)
@@ -146,11 +146,11 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
         console.log('order qty is : ', order.orderQty)
         // console.log('max order qty is : ', maxOrderQty)
         console.log('initial Margin is: ', initialMargin)
-        console.log('expireIn seconds: ', req.body.expireIn)
+        // console.log('expireIn seconds: ', req.body.expireIn)
         // console.log('the expiration time is: ', expTime)
-        console.log('potential loss $', potentialLoss) 
-        console.log('potential loss % of Account: ', potentialLoss/accountvalue*100) 
-        console.log('potential profit $', potentialProfit) 
+        // console.log('potential loss $', potentialLoss) 
+        // console.log('potential loss % of Account: ', potentialLoss/accountvalue*100) 
+        // console.log('potential profit $', potentialProfit) 
         // console.log('the max allowable loss per order is: $', maxLossPerOrder)
         console.log('-------------------------------------------------')
         
