@@ -110,93 +110,110 @@ app.get('/order/list', urlencodedParser, jsonParser, async function(req, res, ne
 })
 
 app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, res, next) {
-    if (req.body.name === "Close Last Order") {
-        res.redirect('/order/cancelLast')
-    } else if (req.body.name === "flatten") {
-        res.redirect('/order/flatten')
-    } else {
+    try {
+        if (req.body.name === "Close Last Order") {
+            res.redirect('/order/cancelLast')
+        } else if (req.body.name === "flatten") {
+            res.redirect('/order/flatten')
+        } else {
+            
+        const {accessToken} = await getauthed()
+
+        // retireve account balance and make sure the order is the correct size
+        const balanceInfo = await axios.post(`https://${accountType}.tradovateapi.com/v1/cashBalance/getcashbalancesnapshot`, {"accountId": 3128704}, {
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            }
+        })
+        const order = req.body
+        // const maxOrderQty = 5
+        const accountvalue = balanceInfo.data.totalCashValue
+        const initialMargin = balanceInfo.data.initialMargin
+        // const maxLossPerOrder = accountvalue * .01
+        // const minProfit = 4     // 4 ticks is the minimum profit to take an order
+        const potentialLoss = Math.abs(order.stopLossPrice - order.price)*4*12.5  
+        const potentialProfit = Math.abs(order.takeProfitPrice - order.price)*4*12.5
+
+        // set expiration after x amount of candles
+        const howManySecondsToExp = parseInt(req.body.expireIn)
+        // const expTime = new Date;
+        // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp)
+        // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp*2)
+
+        console.log('-------------------------------------------------')
+        console.log('the order is: ', order)
+        console.log('order qty is : ', order.orderQty)
+        // console.log('max order qty is : ', maxOrderQty)
+        console.log('initial Margin is: ', initialMargin)
+        console.log('expireIn seconds: ', req.body.expireIn)
+        // console.log('the expiration time is: ', expTime)
+        console.log('potential loss $', potentialLoss) 
+        console.log('potential loss % of Account: ', potentialLoss/accountvalue*100) 
+        console.log('potential profit $', potentialProfit) 
+        // console.log('the max allowable loss per order is: $', maxLossPerOrder)
+        console.log('-------------------------------------------------')
         
-    const {accessToken} = await getauthed()
-
-    // retireve account balance and make sure the order is the correct size
-    const balanceInfo = await axios.post(`https://${accountType}.tradovateapi.com/v1/cashBalance/getcashbalancesnapshot`, {"accountId": 3128704}, {
-        headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-        }
-    })
-    const order = req.body
-    // const maxOrderQty = 5
-    const accountvalue = balanceInfo.data.totalCashValue
-    const initialMargin = balanceInfo.data.initialMargin
-    // const maxLossPerOrder = accountvalue * .01
-    // const minProfit = 4     // 4 ticks is the minimum profit to take an order
-    const potentialLoss = Math.abs(order.stopLossPrice - order.price)*4*12.5  
-    const potentialProfit = Math.abs(order.takeProfitPrice - order.price)*4*12.5
-
-    // set expiration after x amount of candles
-    const howManySecondsToExp = parseInt(req.body.expireIn)
-    // const expTime = new Date;
-    // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp)
-    // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp*2)
-
-    console.log('-------------------------------------------------')
-    console.log('the order is: ', order)
-    console.log('order qty is : ', order.orderQty)
-    // console.log('max order qty is : ', maxOrderQty)
-    console.log('initial Margin is: ', initialMargin)
-    console.log('expireIn seconds: ', req.body.expireIn)
-    // console.log('the expiration time is: ', expTime)
-    console.log('potential loss $', potentialLoss) 
-    console.log('potential loss % of Account: ', potentialLoss/accountvalue*100) 
-    console.log('potential profit $', potentialProfit) 
-    // console.log('the max allowable loss per order is: $', maxLossPerOrder)
-    console.log('-------------------------------------------------')
-    
-    // if (potentialLoss > maxLossPerOrder) {
-    //     res.send('too large of loss')
-    // } else if (Math.abs(order.takeProfitPrice - order.price)*4 < minProfit) {
-    //     res.send('too small an order')
-    // } else {
-    
-    const orderOBJ = {
-        accountSpec: accountType === 'demo' ? process.env.DEMOSPEC : process.env.LIVESPEC,
-        accountId: accountType === 'demo' ? parseInt(process.env.DEMOID) : process.env.LIVEID,
-        action: order.action,
-        symbol: order.symbol,
-        // orderQty: order.orderQty > maxOrderQty ? maxOrderQty : order.orderQty,
-        orderQty: order.orderQty,
-        orderType: order.orderType,
-        // expireTime: expTime,
-        price: order.orderType === "Stop" || order.orderType === "Market" ? null : order.price,
-        stopPrice: order.orderType === "Stop" ? order.price : null,
-        isAutomated: true, 
-        timeInForce: "GTC",
-        bracket1: {
-            action: order.action === "Buy" ? "Sell": "Buy",
-            orderType: 'Limit',
-            price: order.takeProfitPrice,
-            timeInForce: "GTC",
+        // if (potentialLoss > maxLossPerOrder) {
+        //     res.send('too large of loss')
+        // } else if (Math.abs(order.takeProfitPrice - order.price)*4 < minProfit) {
+        //     res.send('too small an order')
+        // } else {
+        
+        const orderOBJ = {
+            accountSpec: accountType === 'demo' ? process.env.DEMOSPEC : process.env.LIVESPEC,
+            accountId: accountType === 'demo' ? parseInt(process.env.DEMOID) : process.env.LIVEID,
+            action: order.action,
+            symbol: order.symbol,
+            // orderQty: order.orderQty > maxOrderQty ? maxOrderQty : order.orderQty,
+            orderQty: order.orderQty,
+            orderType: order.orderType,
             // expireTime: expTime,
-        },
-        bracket2: {
-            action: order.action === "Buy" ? "Sell": "Buy",
-            orderType: 'Stop',
-            stopPrice: order.stopLossPrice,
+            price: order.orderType === "Stop" || order.orderType === "Market" ? null : order.price,
+            stopPrice: order.orderType === "Stop" ? order.price : null,
+            isAutomated: true, 
             timeInForce: "GTC",
-            // expireTime: expTime,
+            bracket1: {
+                action: order.action === "Buy" ? "Sell": "Buy",
+                orderType: 'Limit',
+                price: order.takeProfitPrice,
+                timeInForce: "GTC",
+                // expireTime: expTime,
+            },
+            bracket2: {
+                action: order.action === "Buy" ? "Sell": "Buy",
+                orderType: 'Stop',
+                stopPrice: order.stopLossPrice,
+                timeInForce: "GTC",
+                // expireTime: expTime,
+            }
         }
+
+        const response = await axios.post(`https://${accountType}.tradovateapi.com/v1/order/placeoso`, orderOBJ, {
+            headers: {
+                'Accept': 'application/json',
+                'Authorization': `Bearer ${accessToken}`,
+            }
+        })
+
+        res.send(response.data)
+    }                        
+    } catch (error) {
+        console.log("console logging error in placeoso")
+        console.log(error.message)
+        // res.send('error in plaseoso')
     }
+});
 
-    const response = await axios.post(`https://${accountType}.tradovateapi.com/v1/order/placeoso`, orderOBJ, {
-        headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
-        }
+// error handler
+app.use((err, req, res, next) => {
+    res.status(500).send('Something broke!')
+    
+    res.send({
+        message: err.message,
+        stack: process.env.NODE_ENV === 'production' ? err.stack : err.stack
     })
-
-    res.send(response.data)
-}});
+})
 
 server.listen(80, () => {
   console.log('Server is listening on localhost:80');
