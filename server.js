@@ -120,7 +120,7 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
         const {accessToken} = await getauthed()
 
         // retireve account balance and make sure the order is the correct size
-        const balanceInfo = await axios.post(`https://${accountType}.tradovateapi.com/v1/cashBalance/getcashbalancesnapshot`, {"accountId": 3128704}, {
+        const balanceInfo = await axios.post(`https://${accountType}.tradovateapi.com/v1/cashBalance/getcashbalancesnapshot`, {"accountId": accountType == "demo" ? parseInt(process.env.DEMOID) : parseInt(process.env.LIVEID)}, {
             headers: {
                 'Accept': 'application/json',
                 'Authorization': `Bearer ${accessToken}`,
