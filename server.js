@@ -16,7 +16,7 @@ app.use(
   }),
 );  
 
-const accountType = "demo"
+let accountType 
 
 const credentials = {
     name:       process.env.NAME,
@@ -27,8 +27,8 @@ const credentials = {
     sec:        process.env.SEC,
     deviceId:   process.env.DEVICEID
 }
-const getauthed = async () => {
-    const response = await axios.post(`https://${accountType}.tradovateapi.com/auth/accessTokenRequest`, credentials, {
+const getauthed = async (account) => {
+    const response = await axios.post(`https://${account}.tradovateapi.com/auth/accessTokenRequest`, credentials, {
         headers: {
             'Content-Type': 'application/json'
         }
@@ -36,9 +36,9 @@ const getauthed = async () => {
 
     return response.data
 }
-const getSortedWorkingOrders = async () => {
-    const {accessToken} = await getauthed()
-    const orderList = await axios.get(`https://${accountType}.tradovateapi.com/v1/order/list`, {
+const getSortedWorkingOrders = async (account) => {
+    const {accessToken} = await getauthed(account)
+    const orderList = await axios.get(`https://${account}.tradovateapi.com/v1/order/list`, {
         headers: {
             'Accept': 'application/json',
             'Authorization': `Bearer ${accessToken}`,
@@ -50,56 +50,87 @@ const getSortedWorkingOrders = async () => {
         second = new Date(b.timestamp)
         return second - first
     })
-    return {sortedWorkingOrders, accessToken}
+    return {sortedWorkingOrders}
 }
-app.get('/getAuthed', urlencodedParser, jsonParser, async function(req, res, next) {
-    const response = await getauthed()
-    res.send(response)
-})
+// app.get('/getAuthed', urlencodedParser, jsonParser, async function(req, res, next) {
+//     const response = await getauthed()
+//     res.send(response)
+// })
 
-app.get('/order/working', urlencodedParser, jsonParser, async function(req, res, next) {
-    const { sortedWorkingOrders } = await getSortedWorkingOrders()
+// app.get('/order/working', urlencodedParser, jsonParser, async function(req, res, next) {
+//     const { sortedWorkingOrders } = await getSortedWorkingOrders()
     
-    res.send(sortedWorkingOrders)
-})
+//     res.send(sortedWorkingOrders)
+// })
 
-app.get('/order/cancelLast', urlencodedParser, jsonParser, async function(req, res, next) {
-    const { sortedWorkingOrders, accessToken } = await getSortedWorkingOrders()
+// app.get('/order/cancelLast', urlencodedParser, jsonParser, async function(req, res, next) {
+//     const { sortedWorkingOrders, accessToken } = await getSortedWorkingOrders()
 
-    console.log('toDelete: ',sortedWorkingOrders[0].id)
-    const toDelete = {orderId: sortedWorkingOrders[0].id}
+//     console.log('toDelete: ',sortedWorkingOrders[0].id)
+//     const toDelete = {orderId: sortedWorkingOrders[0].id}
 
-    await axios.post(`https://${accountType}.tradovateapi.com/v1/order/cancelorder`, toDelete, {
-        headers: {
-            'Accept': 'application/json',
-            'Authorization': `Bearer ${accessToken}`,
+//     await axios.post(`https://${accountType}.tradovateapi.com/v1/order/cancelorder`, toDelete, {
+//         headers: {
+//             'Accept': 'application/json',
+//             'Authorization': `Bearer ${accessToken}`,
+//         }
+//     })
+
+//     res.send("deleted")
+// })
+
+app.get('/:account/order/flatten/:contractToFlatten', urlencodedParser, jsonParser, async function(req, res, next) {
+    const {accessToken} = await getauthed(req.params.account)
+    
+    // FIRST: liqudate positions --------------------------------------------------------------------------------------------------------------------
+        const contractResponse = await axios.get(`https://${req.params.account}.tradovateapi.com/v1/contract/find?name=${req.params.contractToFlatten}`, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                }
+            })
+        const contractID = contractResponse.data.id
+        const LiquidatePosistions = async (contractID) => {
+            await axios.post(`https://${req.params.account}.tradovateapi.com/v1/order/liquidateposition`, contractID, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                }
+            })
         }
-    })
-
-    res.send("deleted")
-})
-
-app.get('/order/flatten', urlencodedParser, jsonParser, async function(req, res, next) {
-    const { sortedWorkingOrders, accessToken } = await getSortedWorkingOrders()
-
-    const deleteOrder = async (id) => {
-        await axios.post(`https://${accountType}.tradovateapi.com/v1/order/cancelorder`, id, {
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
+        // Liquidate all positions related to the contract ID (contract is something like MNQZ3, or ESZ3, but they all have unique Tradovate IDs)
+        LiquidatePosistions(
+            {
+                "accountId": req.params.account === 'live' ? parseInt(process.env.LIVEID) : parseInt(process.env.DEMOID),
+                "contractId": contractID,
+                "admin": false
             }
-        })
-    }
-    console.log(sortedWorkingOrders)
-    sortedWorkingOrders.forEach(order => deleteOrder({orderId: order.id}))
+        )  
 
-    res.send("deleted all orders")
+    // SECOND: Delete pending/suspended orders --------------------------------------------------------------------------------------------------------------------
+        const { sortedWorkingOrders } = await getSortedWorkingOrders(req.params.account)
+        const deleteOrder = async (id) => {
+            await axios.post(`https://${req.params.account}.tradovateapi.com/v1/order/cancelorder`, id, {
+                headers: {
+                    'Accept': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                }
+            })
+        }
+        console.log(sortedWorkingOrders[0])
+        sortedWorkingOrders.forEach(order => {
+            if (order.accountId === contractID) {
+                deleteOrder({orderId: order.id})
+            }
+        })  
+
+    res.send('Positions liqidated and orders cancelled (ie "flattened")')
 })
 
-app.get('/order/list', urlencodedParser, jsonParser, async function(req, res, next) {
-    const {accessToken} = await getauthed()
+app.get('/:account/order/list', urlencodedParser, jsonParser, async function(req, res, next) {
+    const {accessToken} = await getauthed(req.params.account)
 
-    const response = await axios.get(`https://${accountType}.tradovateapi.com/v1/order/list`, {
+    const response = await axios.get(`https://${req.params.account}.tradovateapi.com/v1/order/list`, {
         headers: {
             'Accept': 'application/json',
             'Authorization': `Bearer ${accessToken}`,
@@ -110,17 +141,29 @@ app.get('/order/list', urlencodedParser, jsonParser, async function(req, res, ne
 })
 
 app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, res, next) {
+    const contractToFlatten = req.body.symbol
     try {
         if (req.body.name === "Close Last Order") {
             res.redirect('/order/cancelLast')
         } else if (req.body.name === "flatten") {
-            res.redirect('/order/flatten')
+            res.redirect(`/${req.body.account}/order/flatten/${contractToFlatten}`)
         } else {
             
-        const {accessToken} = await getauthed()
+        let accountID 
+        if (req.body.account === 'demo') {
+            accountType = 'demo'
+            accountID = parseInt(process.env.DEMOID)
+        } else if (req.body.account === 'live') {
+            accountType = 'live'
+            accountID = parseInt(process.env.LIVEID)
+        } else {
+            console.log('Please supply an account type ("live" or "demo")')
+            res.send('Please supply an account type ("live" or "demo")')
+        }
 
-        // retireve account balance and make sure the order is the correct size
-        const balanceInfo = await axios.post(`https://${accountType}.tradovateapi.com/v1/cashBalance/getcashbalancesnapshot`, {"accountId": accountType == "demo" ? parseInt(process.env.DEMOID) : parseInt(process.env.LIVEID)}, {
+        const {accessToken} = await getauthed(req.body.account)
+
+        const balanceInfo = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/cashBalance/getcashbalancesnapshot`, {"accountId": accountID}, {
             headers: {
                 'Accept': 'application/json',
                 'Authorization': `Bearer ${accessToken}`,
@@ -143,6 +186,8 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
 
         console.log('-------------------------------------------------')
         console.log('the order is: ', order)
+        console.log('the accountID is: ', accountType === 'live' ? process.env.LIVEID : process.env.DEMOID)
+        console.log('the account Value is: ', accountvalue)
         console.log('order qty is : ', order.orderQty)
         // console.log('max order qty is : ', maxOrderQty)
         console.log('initial Margin is: ', initialMargin)
@@ -161,8 +206,8 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
         // } else {
         
         const orderOBJ = {
-            accountSpec: accountType === 'demo' ? process.env.DEMOSPEC : process.env.LIVESPEC,
-            accountId: accountType === 'demo' ? parseInt(process.env.DEMOID) : process.env.LIVEID,
+            accountSpec: accountType === 'live' ? process.env.LIVESPEC : process.env.DEMOSPEC,
+            accountId: accountType === 'live' ? parseInt(process.env.LIVEID) : parseInt(process.env.DEMOID),
             action: order.action,
             symbol: order.symbol,
             // orderQty: order.orderQty > maxOrderQty ? maxOrderQty : order.orderQty,
@@ -189,7 +234,7 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
             }
         }
 
-        const response = await axios.post(`https://${accountType}.tradovateapi.com/v1/order/placeoso`, orderOBJ, {
+        const response = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/order/placeoso`, orderOBJ, {
             headers: {
                 'Accept': 'application/json',
                 'Authorization': `Bearer ${accessToken}`,
