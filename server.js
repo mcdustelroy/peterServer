@@ -52,33 +52,9 @@ const getSortedWorkingOrders = async (account) => {
     })
     return {sortedWorkingOrders}
 }
-// app.get('/getAuthed', urlencodedParser, jsonParser, async function(req, res, next) {
-//     const response = await getauthed()
-//     res.send(response)
-// })
 
-// app.get('/order/working', urlencodedParser, jsonParser, async function(req, res, next) {
-//     const { sortedWorkingOrders } = await getSortedWorkingOrders()
-    
-//     res.send(sortedWorkingOrders)
-// })
 
-// app.get('/order/cancelLast', urlencodedParser, jsonParser, async function(req, res, next) {
-//     const { sortedWorkingOrders, accessToken } = await getSortedWorkingOrders()
-
-//     console.log('toDelete: ',sortedWorkingOrders[0].id)
-//     const toDelete = {orderId: sortedWorkingOrders[0].id}
-
-//     await axios.post(`https://${accountType}.tradovateapi.com/v1/order/cancelorder`, toDelete, {
-//         headers: {
-//             'Accept': 'application/json',
-//             'Authorization': `Bearer ${accessToken}`,
-//         }
-//     })
-
-//     res.send("deleted")
-// })
-
+// Routes
 app.get('/:account/order/flatten/:contractToFlatten', urlencodedParser, jsonParser, async function(req, res, next) {
     const {accessToken} = await getauthed(req.params.account)
     
@@ -249,6 +225,7 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
         // res.send('error in plaseoso')
     }
 });
+
 
 // error handler
 app.use((err, req, res, next) => {
