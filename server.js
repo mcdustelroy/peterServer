@@ -245,9 +245,10 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
                 )  
 
                 // SECOND: Delete pending/suspended orders --------------------------------------------------------------------------------------------
+                let deletedOrderResponse = null
                 const { sortedWorkingOrders } = await getSortedWorkingOrders(req.body.account)
                 const deleteOrder = async (id) => {
-                    const deletedOrderResponse = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/order/cancelorder`, id, {
+                    deletedOrderResponse = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/order/cancelorder`, id, {
                         headers: {
                             'Accept': 'application/json',
                             'Authorization': `Bearer ${accessToken}`,
@@ -261,7 +262,6 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
                     }
                 }) 
                     
-
                 Promise.all([contractResponse, flattenResponse, deletedOrderResponse]).then((values) => {
                     console.log("all promises resolved");
                     sendOrder()
