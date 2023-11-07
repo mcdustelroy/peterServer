@@ -214,11 +214,62 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
 
                 res.send(response.data)            
             }
-            // If there is an order in, flatten first
+
+// flatten
+//-------------------------------------------------------------------------------------------------------------------------------------------------------------
             const workingOrds = await getSortedWorkingOrders(req.body.account, accessToken)
             if (workingOrds && workingOrds.sortedWorkingOrders.length > 0) {
-                await flatten(req.body.account, contractToFlatten, accessToken)
-                sendOrder()
+                // FIRST: liqudate positions --------------------------------------------------------------------------------------------------------
+                const contractResponse = await axios.get(`https://${req.body.account}.tradovateapi.com/v1/contract/find?name=${contractToFlatten}`, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`,
+                        }
+                    })
+                const contractID = contractResponse.data.id
+                const LiquidatePosistions = async (contractID) => {
+                    const flattenResponse = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/order/liquidateposition`, contractID, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`,
+                        }
+                    })
+                }
+                // Liquidate all positions related to the contract ID (contract is something like MNQZ3, or ESZ3, but they all have unique Tradovate IDs)
+                LiquidatePosistions(
+                    {
+                        "accountId": req.body.account === 'live' ? parseInt(process.env.LIVEID) : parseInt(process.env.DEMOID),
+                        "contractId": contractID,
+                        "admin": false
+                    }
+                )  
+
+                // SECOND: Delete pending/suspended orders --------------------------------------------------------------------------------------------
+                const { sortedWorkingOrders } = await getSortedWorkingOrders(req.body.account)
+                const deleteOrder = async (id) => {
+                    const deletedOrderResponse = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/order/cancelorder`, id, {
+                        headers: {
+                            'Accept': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`,
+                        }
+                    })
+                }
+                
+                sortedWorkingOrders.forEach(order => {
+                    if (order.accountId === contractID) {
+                        deleteOrder({orderId: order.id})
+                    }
+                }) 
+                    
+
+                Promise.all([contractResponse, flattenResponse, deletedOrderResponse]).then((values) => {
+                    console.log("all promises resolved");
+                    sendOrder()
+                }).catch((reason) => {
+                    console.log(reason);
+                });
+
+                
             } else {
                 sendOrder()
             }    
