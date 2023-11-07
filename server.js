@@ -69,6 +69,7 @@ const flatten = async (account, contractToFlatten, token = null) => {
     } else {
         accessToken = token
     }
+
     // FIRST: liqudate positions --------------------------------------------------------------------------------------------------------------------
         const contractResponse = await axios.get(`https://${account}.tradovateapi.com/v1/contract/find?name=${contractToFlatten}`, {
                 headers: {
@@ -104,7 +105,7 @@ const flatten = async (account, contractToFlatten, token = null) => {
                 }
             })
         }
-        console.log(sortedWorkingOrders[0])
+        // console.log(sortedWorkingOrders[0])
         sortedWorkingOrders.forEach(order => {
             if (order.accountId === contractID) {
                 deleteOrder({orderId: order.id})
@@ -179,33 +180,8 @@ app.get('/:account/order/list', urlencodedParser, jsonParser, async function(req
 })
 
 app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, res, next) {
-    const contractToFlatten = req.body.symbol
-    try {
-        if (req.body.name === "Close Last Order") {
-            res.redirect('/order/cancelLast')
-        } else if (req.body.name === "flatten") {
-            res.redirect(`/${req.body.account}/order/flatten/${contractToFlatten}`)
-        } else {
-            
-        let accountID 
-        if (req.body.account === 'demo') {
-            accountType = 'demo'
-            accountID = parseInt(process.env.DEMOID)
-        } else if (req.body.account === 'live') {
-            accountType = 'live'
-            accountID = parseInt(process.env.LIVEID)
-        } else {
-            console.log('Please supply an account type ("live" or "demo")')
-            res.send('Please supply an account type ("live" or "demo")')
-        }
 
-        const {accessToken} = await getauthed(req.body.account)
-        // If there is an order in, flatten first
-        const workingOrds = await getSortedWorkingOrders(req.body.account, accessToken)
-         if (workingOrds && workingOrds.sortedWorkingOrders.length > 0) {
-            await flatten(req.body.account, contractToFlatten, accessToken)
-         } 
-
+    const sendOrder = async () => {
         const balanceInfo = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/cashBalance/getcashbalancesnapshot`, {"accountId": accountID}, {
             headers: {
                 'Accept': 'application/json',
@@ -213,40 +189,16 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
             }
         })
         const order = req.body
-        // const maxOrderQty = 5
         const accountvalue = balanceInfo.data.totalCashValue
         const initialMargin = balanceInfo.data.initialMargin
-        // const maxLossPerOrder = accountvalue * .01
-        // const minProfit = 4     // 4 ticks is the minimum profit to take an order
-        // const potentialLoss = Math.abs(order.stopLossPrice - order.price)*4*12.5  
-        // const potentialProfit = Math.abs(order.takeProfitPrice - order.price)*4*12.5
-
-        // set expiration after x amount of candles
-        // const howManySecondsToExp = parseInt(req.body.expireIn)
-        // const expTime = new Date;
-        // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp)
-        // expTime.setSeconds(expTime.getSeconds() + howManySecondsToExp*2)
 
         console.log('-------------------------------------------------')
         console.log('the order is: ', order)
         console.log('the accountID is: ', accountType === 'live' ? process.env.LIVEID : process.env.DEMOID)
         console.log('the account Value is: ', accountvalue)
         console.log('order qty is : ', order.orderQty)
-        // console.log('max order qty is : ', maxOrderQty)
         console.log('initial Margin is: ', initialMargin)
-        // console.log('expireIn seconds: ', req.body.expireIn)
-        // console.log('the expiration time is: ', expTime)
-        // console.log('potential loss $', potentialLoss) 
-        // console.log('potential loss % of Account: ', potentialLoss/accountvalue*100) 
-        // console.log('potential profit $', potentialProfit) 
-        // console.log('the max allowable loss per order is: $', maxLossPerOrder)
         console.log('-------------------------------------------------')
-        
-        // if (potentialLoss > maxLossPerOrder) {
-        //     res.send('too large of loss')
-        // } else if (Math.abs(order.takeProfitPrice - order.price)*4 < minProfit) {
-        //     res.send('too small an order')
-        // } else {
         
         const orderOBJ = {
             accountSpec: accountType === 'live' ? process.env.LIVESPEC : process.env.DEMOSPEC,
@@ -284,9 +236,38 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
             }
         })
 
-        res.send(response.data)
-    
-    }                        
+        res.send(response.data)            
+    }
+
+    const contractToFlatten = req.body.symbol
+    try {
+        if (req.body.name === "Close Last Order") {
+            res.redirect('/order/cancelLast')
+        } else if (req.body.name === "flatten") {
+            res.redirect(`/${req.body.account}/order/flatten/${contractToFlatten}`)
+        } else {
+            let accountID 
+            if (req.body.account === 'demo') {
+                accountType = 'demo'
+                accountID = parseInt(process.env.DEMOID)
+            } else if (req.body.account === 'live') {
+                accountType = 'live'
+                accountID = parseInt(process.env.LIVEID)
+            } else {
+                console.log('Please supply an account type ("live" or "demo")')
+                res.send('Please supply an account type ("live" or "demo")')
+            }
+
+            const {accessToken} = await getauthed(req.body.account)
+            // If there is an order in, flatten first
+            const workingOrds = await getSortedWorkingOrders(req.body.account, accessToken)
+            if (workingOrds && workingOrds.sortedWorkingOrders.length > 0) {
+                await flatten(req.body.account, contractToFlatten, accessToken)
+                    .then(() => sendOrder())
+            } else {
+                sendOrder()
+            }    
+        }                        
     } catch (error) {
         console.log("console logging error in placeoso")
         console.log(error.message)
