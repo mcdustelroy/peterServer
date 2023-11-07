@@ -79,7 +79,7 @@ const flatten = async (account, contractToFlatten, token = null) => {
             })
         const contractID = contractResponse.data.id
         const LiquidatePosistions = async (contractID) => {
-            await axios.post(`https://${account}.tradovateapi.com/v1/order/liquidateposition`, contractID, {
+            const flattenResponse = await axios.post(`https://${account}.tradovateapi.com/v1/order/liquidateposition`, contractID, {
                 headers: {
                     'Accept': 'application/json',
                     'Authorization': `Bearer ${accessToken}`,
@@ -112,56 +112,12 @@ const flatten = async (account, contractToFlatten, token = null) => {
             }
         })  
 
+        return sortedWorkingOrders
 }
 
 // Routes
 app.get('/:account/order/flatten/:contractToFlatten', urlencodedParser, jsonParser, async function(req, res, next) {
-    // const {accessToken} = await getauthed(req.params.account)
-    
     flatten(req.params.account, req.params.contractToFlatten)
-
-
-    // // FIRST: liqudate positions --------------------------------------------------------------------------------------------------------------------
-    //     const contractResponse = await axios.get(`https://${req.params.account}.tradovateapi.com/v1/contract/find?name=${req.params.contractToFlatten}`, {
-    //             headers: {
-    //                 'Accept': 'application/json',
-    //                 'Authorization': `Bearer ${accessToken}`,
-    //             }
-    //         })
-    //     const contractID = contractResponse.data.id
-    //     const LiquidatePosistions = async (contractID) => {
-    //         await axios.post(`https://${req.params.account}.tradovateapi.com/v1/order/liquidateposition`, contractID, {
-    //             headers: {
-    //                 'Accept': 'application/json',
-    //                 'Authorization': `Bearer ${accessToken}`,
-    //             }
-    //         })
-    //     }
-    //     // Liquidate all positions related to the contract ID (contract is something like MNQZ3, or ESZ3, but they all have unique Tradovate IDs)
-    //     LiquidatePosistions(
-    //         {
-    //             "accountId": req.params.account === 'live' ? parseInt(process.env.LIVEID) : parseInt(process.env.DEMOID),
-    //             "contractId": contractID,
-    //             "admin": false
-    //         }
-    //     )  
-
-    // // SECOND: Delete pending/suspended orders --------------------------------------------------------------------------------------------------------------------
-    //     const { sortedWorkingOrders } = await getSortedWorkingOrders(req.params.account)
-    //     const deleteOrder = async (id) => {
-    //         await axios.post(`https://${req.params.account}.tradovateapi.com/v1/order/cancelorder`, id, {
-    //             headers: {
-    //                 'Accept': 'application/json',
-    //                 'Authorization': `Bearer ${accessToken}`,
-    //             }
-    //         })
-    //     }
-    //     console.log(sortedWorkingOrders[0])
-    //     sortedWorkingOrders.forEach(order => {
-    //         if (order.accountId === contractID) {
-    //             deleteOrder({orderId: order.id})
-    //         }
-    //     })  
 
     res.send('Positions liqidated and orders cancelled (ie "flattened")')
 })
@@ -180,65 +136,6 @@ app.get('/:account/order/list', urlencodedParser, jsonParser, async function(req
 })
 
 app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, res, next) {
-
-    const sendOrder = async () => {
-        const balanceInfo = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/cashBalance/getcashbalancesnapshot`, {"accountId": accountID}, {
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            }
-        })
-        const order = req.body
-        const accountvalue = balanceInfo.data.totalCashValue
-        const initialMargin = balanceInfo.data.initialMargin
-
-        console.log('-------------------------------------------------')
-        console.log('the order is: ', order)
-        console.log('the accountID is: ', accountType === 'live' ? process.env.LIVEID : process.env.DEMOID)
-        console.log('the account Value is: ', accountvalue)
-        console.log('order qty is : ', order.orderQty)
-        console.log('initial Margin is: ', initialMargin)
-        console.log('-------------------------------------------------')
-        
-        const orderOBJ = {
-            accountSpec: accountType === 'live' ? process.env.LIVESPEC : process.env.DEMOSPEC,
-            accountId: accountType === 'live' ? parseInt(process.env.LIVEID) : parseInt(process.env.DEMOID),
-            action: order.action,
-            symbol: order.symbol,
-            // orderQty: order.orderQty > maxOrderQty ? maxOrderQty : order.orderQty,
-            orderQty: order.orderQty,
-            orderType: order.orderType,
-            // expireTime: expTime,
-            price: order.orderType === "Stop" || order.orderType === "Market" ? null : order.price,
-            stopPrice: order.orderType === "Stop" ? order.price : null,
-            isAutomated: true, 
-            timeInForce: "GTC",
-            bracket1: {
-                action: order.action === "Buy" ? "Sell": "Buy",
-                orderType: 'Limit',
-                price: order.takeProfitPrice,
-                timeInForce: "GTC",
-                // expireTime: expTime,
-            },
-            bracket2: {
-                action: order.action === "Buy" ? "Sell": "Buy",
-                orderType: 'Stop',
-                stopPrice: order.stopLossPrice,
-                timeInForce: "GTC",
-                // expireTime: expTime,
-            }
-        }
-
-        const response = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/order/placeoso`, orderOBJ, {
-            headers: {
-                'Accept': 'application/json',
-                'Authorization': `Bearer ${accessToken}`,
-            }
-        })
-
-        res.send(response.data)            
-    }
-
     const contractToFlatten = req.body.symbol
     try {
         if (req.body.name === "Close Last Order") {
@@ -259,11 +156,69 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
             }
 
             const {accessToken} = await getauthed(req.body.account)
+
+            const sendOrder = async () => {
+                const balanceInfo = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/cashBalance/getcashbalancesnapshot`, {"accountId": accountID}, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                    }
+                })
+                const order = req.body
+                const accountvalue = balanceInfo.data.totalCashValue
+                const initialMargin = balanceInfo.data.initialMargin
+
+                console.log('-------------------------------------------------')
+                console.log('the order is: ', order)
+                console.log('the accountID is: ', accountType === 'live' ? process.env.LIVEID : process.env.DEMOID)
+                console.log('the account Value is: ', accountvalue)
+                console.log('order qty is : ', order.orderQty)
+                console.log('initial Margin is: ', initialMargin)
+                console.log('-------------------------------------------------')
+                
+                const orderOBJ = {
+                    accountSpec: accountType === 'live' ? process.env.LIVESPEC : process.env.DEMOSPEC,
+                    accountId: accountType === 'live' ? parseInt(process.env.LIVEID) : parseInt(process.env.DEMOID),
+                    action: order.action,
+                    symbol: order.symbol,
+                    // orderQty: order.orderQty > maxOrderQty ? maxOrderQty : order.orderQty,
+                    orderQty: order.orderQty,
+                    orderType: order.orderType,
+                    // expireTime: expTime,
+                    price: order.orderType === "Stop" || order.orderType === "Market" ? null : order.price,
+                    stopPrice: order.orderType === "Stop" ? order.price : null,
+                    isAutomated: true, 
+                    timeInForce: "GTC",
+                    bracket1: {
+                        action: order.action === "Buy" ? "Sell": "Buy",
+                        orderType: 'Limit',
+                        price: order.takeProfitPrice,
+                        timeInForce: "GTC",
+                        // expireTime: expTime,
+                    },
+                    bracket2: {
+                        action: order.action === "Buy" ? "Sell": "Buy",
+                        orderType: 'Stop',
+                        stopPrice: order.stopLossPrice,
+                        timeInForce: "GTC",
+                        // expireTime: expTime,
+                    }
+                }
+
+                const response = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/order/placeoso`, orderOBJ, {
+                    headers: {
+                        'Accept': 'application/json',
+                        'Authorization': `Bearer ${accessToken}`,
+                    }
+                })
+
+                res.send(response.data)            
+            }
             // If there is an order in, flatten first
             const workingOrds = await getSortedWorkingOrders(req.body.account, accessToken)
             if (workingOrds && workingOrds.sortedWorkingOrders.length > 0) {
                 await flatten(req.body.account, contractToFlatten, accessToken)
-                    .then(() => sendOrder())
+                sendOrder()
             } else {
                 sendOrder()
             }    
