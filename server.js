@@ -78,8 +78,9 @@ const flatten = async (account, contractToFlatten, token = null) => {
                 }
             })
         const contractID = contractResponse.data.id
+        let flattenResponse = null
         const LiquidatePosistions = async (contractID) => {
-            const flattenResponse = await axios.post(`https://${account}.tradovateapi.com/v1/order/liquidateposition`, contractID, {
+            flattenResponse = await axios.post(`https://${account}.tradovateapi.com/v1/order/liquidateposition`, contractID, {
                 headers: {
                     'Accept': 'application/json',
                     'Authorization': `Bearer ${accessToken}`,
@@ -152,6 +153,7 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
                 accountID = parseInt(process.env.LIVEID)
             } else {
                 console.log('Please supply an account type ("live" or "demo")')
+                console.log(req.body)
                 res.send('Please supply an account type ("live" or "demo")')
             }
 
@@ -227,8 +229,9 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
                         }
                     })
                 const contractID = contractResponse.data.id
+                let flattenResponse = null
                 const LiquidatePosistions = async (contractID) => {
-                    const flattenResponse = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/order/liquidateposition`, contractID, {
+                    flattenResponse = await axios.post(`https://${req.body.account}.tradovateapi.com/v1/order/liquidateposition`, contractID, {
                         headers: {
                             'Accept': 'application/json',
                             'Authorization': `Bearer ${accessToken}`,
