@@ -269,7 +269,9 @@ app.post("/order/placeoso", urlencodedParser, jsonParser, async function(req, re
                 console.log('in flatten before Promise.all', Date.now())
                 Promise.all([contractResponse, flattenResponse, deletedOrderResponse]).then((values) => {
                     console.log("all promises resolved");
-                    sendOrder()
+                    setTimeout(() => {
+                        sendOrder()
+                    }, 200);
                 }).catch((reason) => {
                     console.log(reason);
                 });
